@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Update images</title>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+
+<style>
+#project_info {
+	width: 500px;
+	float: left;
+}
+#canvas_info {
+}
+	
+#project_info label {
+	font-weight: bold;
+	width: 100px;
+	float: left;
+	display: block;
+}
+
+#image_boxes {
+	width: 500px;
+	background-color: #F5F5F5;
+	padding: 10px;
+	display: table;
+}
+
+.ib_header {
+	display: table-row;
+	font-weight: bold;
+}
+
+.ib_row {
+	display: table-row;
+}
+
+.ib_class {
+	width: 70px;
+	display: table-cell;
+	padding: 3px;
+}
+
+.ib_data {
+	width: 250px;
+	display: table-cell;
+	padding: 3px;
+}
+
+.ib_ctrl {
+	width: 100px;
+	display: table-cell;
+	padding: 3px;
+}
+
+.ib_ctrl button {
+}
+	
+</style>
+</head>
+<body>
+	
+<div id="project_info">
+	<label for="project">Project Id</label><input type="text" id="project" value="" />
+	<button onclick="loadNextImage()">Load Next</button>
+	
+	<div id="image_boxes">
+		<div class="ib_header">
+			<div class="ib_class">Class</div>
+			<div class="ib_data">Data</div>
+			<div class="ib_ctrl">&nbsp;</div>
+		</div>
+	</div>
+	
+	<div>
+		<label for="category">Category</label><select id="category"></select>
+		<button id="box_action">New Box</button>
+	</div>
+	
+	<div>
+		<button onclick="saveImageData();">Store image data</button>
+	</div>
+</div>
+<div id="canvas_info">
+	<canvas id="imgCanvas"></canvas>
+</div>
+
+<script>
+	
+var canvas = document.getElementById('imgCanvas');
+var ctx = canvas.getContext('2d');
+var canvasx = $(canvas).offset().left;
+var canvasy = $(canvas).offset().top;
+var last_mousex = last_mousey = 0;
+var mousex = mousey = 0;
+var mousedown = false;
+var img = new Image();
+
+var box_x = 0;
+var box_y = 0;
+var box_w = 0;
+var box_h = 0;
+var record_box = false;
+var box_state_init = false;
+
+var cur_image = null;
+var boxes = [];
+var category_list = [];
+
+function init_new_image()
+{
+	
+	canvas.width = cur_image.width;
+	canvas.height = cur_image.height;
+	ctx = canvas.getContext('2d');
+	ctx.drawImage(img, 0, 0);
+	
+}
+
+function drawImageBox(x, y, width, height, color, size)
+{
+	ctx.beginPath();
+	ctx.rect(x,y,width,height);
+	ctx.strokeStyle = color;
+	ctx.lineWidth = size;
+	ctx.stroke();
+}
+
+function getMousePos(e) {
+	var rect = canvas.getBoundingClientRect();
+	pos = {
+		x: e.clientX - rect.left,
+		y: e.clientY - rect.top
+	};
+	
+	
+	return pos;
+}
+
+function loadImageBox(id) {
+	var box = boxes[id];
+	
+	x= box.x - (box.width / 2);
+	y = box.y - (box.height / 2);
+	
+	drawImageBox(x,y,box.width,box.height, 'red', 1);
+	drawImageBox(box.x,box.y,1,1, 'red', 2);
+}
+
+$('#project').on('blur', function(e) {
+	loadCategories();
+});
+
+$(canvas).on('mousedown', function(e) {
+	if(record_box == false) return;
+	
+    //last_mousex = parseInt(e.clientX-canvasx);
+	//last_mousey = parseInt(e.clientY-canvasy);
+	pos = getMousePos(e);
+	
+	//alert('x: ' + pos.x + ' y: ' + pos.y);
+	last_mousex = pos.x
+	last_mousey = pos.y
+    mousedown = true;
+});
+
+//Mouseup
+$(canvas).on('mouseup', function(e) {
+	if(mousedown == false) return;
+	
+	box_w = mousex-last_mousex;
+    box_h = mousey-last_mousey;
+    
+    box_x = Math.round((box_w / 2) + last_mousex);
+    box_y = Math.round((box_h / 2) + last_mousey);
+    
+    
+    mousedown = false;
+    
+    drawImageBox(box_x,box_y,1,1, 'red', 2);
+});
+
+//Mousemove
+$(canvas).on('mousemove', function(e) {
+	pos = getMousePos(e);
+    mousex = pos.x;
+	mousey = pos.y;
+    //mousex = parseInt(e.clientX-canvasx);
+	//mousey = parseInt(e.clientY-canvasy);
+    if(mousedown) {
+        ctx.clearRect(0,0,canvas.width,canvas.height); //clear canvas
+        ctx.drawImage(img, 0, 0);
+        
+        var width = mousex-last_mousex;
+        var height = mousey-last_mousey;
+        
+        drawImageBox(last_mousex,last_mousey,width,height, 'red', 1);
+    }
+    //Output debug
+    //$('#output').html('current: '+mousex+', '+mousey+'<br/>last: '+last_mousex+', '+last_mousey+'<br/>mousedown: '+mousedown);
+});
+
+
+$('#box_action').on('click', e => {
+	if(null == cur_image) {
+		alert('No image exists');
+		return;
+	}
+	
+	var bu = document.getElementById("box_action");
+	if(record_box) {
+		//read to be saved
+		bu.innerText = 'New Box';
+		add_box();
+	} else {
+		//ready to init
+		bu.innerText = 'Save Box';
+		init_new_box();
+	}
+});
+
+function init_new_box()
+{
+	if(null == cur_image) {
+		alert('No image exists');
+		return;
+	}
+	
+	box_x = 0;
+	box_y = 0;
+	box_h = 0;
+	box_w = 0;
+	
+	record_box = true;
+	//ctx.clearRect(0,0,canvas.width,canvas.height); //clear canvas
+	
+	var canvasx = $(canvas).offset().left;
+	var canvasy = $(canvas).offset().top;
+	
+}
+
+function add_box()
+{
+	if(false == record_box) return true;
+	
+	//add to table
+	//data = 
+	//alert('x: ' + box_x + ' y: ' + box_y + ' w: ' + box_w + ' h: ' + box_h);
+	
+	record_box = false;
+	
+	cat_value = $('#category').find(':selected').val();
+	cat_text = $('#category').find(':selected').text();
+	
+	var item = {id: 0, category: cat_value, cat_text: cat_text, height: box_h, width: box_w, x: box_x, y: box_y}
+	
+	boxes.push(item);
+	
+	drawBoxesList();
+	
+}
+
+function delete_box(id)
+{
+	boxes.splice(id, 1);
+	
+	drawBoxesList();
+	
+}
+
+function drawBoxesList()
+{
+	//clean
+	var items = document.getElementsByClassName('ib_row');
+	while(items[0]) {
+		items[0].parentNode.removeChild(items[0]);
+	}
+	
+	//draw
+	for(i=0; i< boxes.length; i++) {
+		if("undefined" === typeof(boxes[i].cat_text)) {
+			cat_id = boxes[i].category;
+			
+			if(category_list.hasOwnProperty(cat_id)) {
+				boxes[i].cat_text = category_list[cat_id];
+			} else {
+				alert('unable to find class for id ' + cat_id);
+			}
+		}
+		category = $('<div class="ib_class">' + boxes[i].cat_text + '</div>');
+		
+		data_value = 'x: ' + boxes[i].x + ' y: ' + boxes[i].y + ' w: ' + boxes[i].width + ' h: ' + boxes[i].height;
+		data = $('<div class="ib_class">' + data_value + '</div>');
+		
+		action = $('<div class="ib_ctrl"><button onclick="loadImageBox(' + i + ')">View</button><button onclick="delete_box(' + i + ');">Delete</button></div>');
+		
+		row = $('<div class="ib_row">');
+		
+		row.append(category, data, action);
+		
+		$('#image_boxes').append(row);
+	}
+}
+
+function loadCategories() {
+	var project = $('#project').val();
+	
+	$('#category').find('option').remove().end();
+	
+	if(project == '') return;
+	boxes = [];
+	drawBoxesList();
+	
+	fetch('index.php?a=categories&p=' + project , {
+		method: 'POST',
+		body: '',
+		headers: {
+			'content-Type': 'application/json'
+		}
+	})
+	.then(response => {
+		if(response.ok) {
+			return response.json();
+		} else {
+			//var desc = response.json().description;
+			return Promise.reject(response.statusText);
+		}
+	})
+	.then(result => {
+		$('#category').append($('<option>',{value: 0, text: '-- select category --'}));
+		for(var key in result) {
+			if(result.hasOwnProperty(key)) {
+				$('#category').append($('<option>',{value: key, text: result[key]}));
+				//$('#category)
+			}
+			
+			category_list = result;
+		}
+	})
+	.catch(error => alert('Error getting categories: ' + error));
+}
+
+function loadNextImage() {
+	var project = $('#project').val();
+	boxes = [];
+	drawBoxesList();
+	
+	fetch('index.php?a=next&p=' + project , {
+		method: 'POST',
+		body: '',
+		headers: {
+			'content-Type': 'application/json'
+		}
+	})
+	.then(response => {
+		if(response.ok) {
+			return response.json();
+		} else {
+			//var desc = response.json().description;
+			return Promise.reject(response.statusText);
+		}
+	})
+	.then(result => {
+		if(!result.image) return;
+		img.onload = function() {
+			cur_image = result;
+			init_new_image();
+			cur_image.image = '';
+			boxes = result.boxes;
+			for(i=0;i<boxes.length;i++) {
+				boxes[i].category = boxes[i].class;
+			}
+			drawBoxesList();
+		};
+		
+		img.src = 'data:' + result.content_type + ';base64,' + result.image;
+	})
+	.catch(error => alert('Error getting next image: ' + error));
+}
+
+function saveImageData()
+{
+	if(null == cur_image) {
+		alert('No image exists');
+		return;
+	}
+	var project = $('#project').val();
+	cur_image.boxes = boxes;
+	
+	//alert(JSON.stringify(cur_image));
+	
+	fetch('index.php?a=update&p=' + project , {
+		method: 'POST',
+		body: JSON.stringify(cur_image),
+		headers: {
+			'content-Type': 'application/json'
+		}
+	})
+	.then(response => {
+		if(response.ok) {
+			return response.json();
+		} else {
+			//var desc = response.json().description;
+			return Promise.reject(response.statusText);
+		}
+	})
+	.then(result => {
+		loadNextImage();
+	})
+	.catch(error => alert('Error saving image: ' + error));
+	
+}
+
+</script>
+
+</body>
+</html>
