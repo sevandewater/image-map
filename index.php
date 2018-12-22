@@ -239,7 +239,7 @@ class page
 			$this->sendError(400, 'data not provided or invalid');
 		}
 		
-		if(!($db_data = $item->toArray(array('image_id','class','x','y','height','width')))) {
+		if(!($db_data = $item->toArray(array('image_id','class','x','y','height','width','clipped','difficult')))) {
 			$this->sendError(500, 'problem saving box data');
 		}
 		
@@ -517,6 +517,8 @@ class struct_item_image_box
 	public $width = 0;
 	public $x = 0;
 	public $y = 0;
+	public $clipped = 0;
+	public $difficult = 0;
 	
 	public function __construct($data)
 	{
@@ -550,6 +552,8 @@ class struct_item_image_box
 		$this->y = (!empty($obj->y)) ? $obj->y : 0;
 		$this->height = (!empty($obj->height)) ? $obj->height : 0;
 		$this->width = (!empty($obj->width)) ? $obj->width : 0;
+		$this->clipped = (!empty($obj->clipped)) ? 1 : 0;
+		$this->difficult = (!empty($obj->difficult)) ? 1 : 0;
 	}
 	
 	public function fromArray(array $data)
@@ -563,6 +567,8 @@ class struct_item_image_box
 		$this->y = (!empty($data['y'])) ? $data['y'] : 0;
 		$this->height = (!empty($data['height'])) ? $data['height'] : 0;
 		$this->width = (!empty($data['width'])) ? $data['width'] : 0;
+		$this->clipped = (!empty($data['clipped'])) ? 1 : 0;
+		$this->difficult = (!empty($data['difficult'])) ? 1 : 0;
 	}
 	
 	public function toJson()

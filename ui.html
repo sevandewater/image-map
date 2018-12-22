@@ -16,8 +16,7 @@
 #project_info label {
 	font-weight: bold;
 	width: 100px;
-	float: left;
-	display: block;
+	display: block-inline;
 }
 
 #image_boxes {
@@ -56,13 +55,25 @@
 
 .ib_ctrl button {
 }
+
+.ui_field {
+	float: left;
+}
+
+.ui_field {
+	display: inline-block;
+}
+
+.ui_field label {
+	display: block;
+}
 	
 </style>
 </head>
 <body>
 	
 <div id="project_info">
-	<label for="project">Project Id</label><input type="text" id="project" value="" />
+	<label style="display: block; float: left;" for="project">Project Id</label><input type="text" id="project" value="" />
 	<button onclick="loadNextImage()">Load Next</button>
 	
 	<div id="image_boxes">
@@ -74,11 +85,24 @@
 	</div>
 	
 	<div>
-		<label for="category">Category</label><select id="category"></select>
-		<button id="box_action">New Box</button>
+		<span class="ui_field">
+			<label for="clipped">Clipped</label>
+			<input id="clipped" type="checkbox" value="1">
+		</span>
+		<span class="ui_field">
+			<label for="difficult">Difficult</label>
+			<input id="difficult" type="checkbox" value="1">
+		</span>
+		<span class="ui_field">
+			<label for="category">Category</label>
+			<select id="category"></select>
+		</span>
+		<span>
+			<button style="margin-top: 18px; margin-left: 10px;" id="box_action">New Box</button>
+		</span>
 	</div>
 	
-	<div>
+	<div style="clear: both; padding-top: 10px;">
 		<button onclick="saveImageData();">Store image data</button>
 	</div>
 </div>
@@ -90,19 +114,23 @@
 	
 var canvas = document.getElementById('imgCanvas');
 var ctx = canvas.getContext('2d');
-var canvasx = $(canvas).offset().left;
-var canvasy = $(canvas).offset().top;
-var last_mousex = last_mousey = 0;
-var mousex = mousey = 0;
+
+var box_dim = {x1: 0, y1: 0, x2: 0, y2: 0}
+var mouse_start_x = mouse_start_y = 0;
+//var canvasx = $(canvas).offset().left;
+//var canvasy = $(canvas).offset().top;
+//var last_mousex = last_mousey = 0;
+//var mousex = mousey = 0;
+//var move_mousex = move_mousey = 0;
 var mousedown = false;
 var img = new Image();
 
-var box_x = 0;
-var box_y = 0;
-var box_w = 0;
-var box_h = 0;
 var record_box = false;
-var box_state_init = false;
+var create_box = false;
+var update_box = false;
+var move_box = false;
+
+var mouse_in_box = false;
 
 var cur_image = null;
 var boxes = [];
@@ -132,8 +160,7 @@ function getMousePos(e) {
 	pos = {
 		x: e.clientX - rect.left,
 		y: e.clientY - rect.top
-	};
-	
+	};	
 	
 	return pos;
 }
@@ -148,6 +175,30 @@ function loadImageBox(id) {
 	drawImageBox(box.x,box.y,1,1, 'red', 2);
 }
 
+		
+
+function mouseInBox(curx, cury)
+{
+		x1 = Math.min(box_dim.x1, box_dim.x2);
+		x2 = Math.max(box_dim.x1, box_dim.x2);
+		y1 = Math.min(box_dim.y1, box_dim.y2);
+		y2 = Math.max(box_dim.y1, box_dim.y2);
+		
+		if(curx > x1 && curx < x2 & cury > y1 && cury < y2) {
+			$('canvas').css('cursor','pointer');
+			mouse_in_box = true;		
+		} else if(x1 > 0) {
+			$('canvas').css('cursor','default');
+			//alert('x1: ' + x1 + ' x2: ' + x2 + ' y1: ' + y1 + ' y2: ' + y2 + ' x: ' + curx + ' y: ' + cury);
+			mouse_in_box = false;			
+		} else {
+			console.log('nowhere');
+		}
+			
+	
+	return;
+}
+
 $('#project').on('blur', function(e) {
 	loadCategories();
 });
@@ -155,13 +206,38 @@ $('#project').on('blur', function(e) {
 $(canvas).on('mousedown', function(e) {
 	if(record_box == false) return;
 	
-    //last_mousex = parseInt(e.clientX-canvasx);
-	//last_mousey = parseInt(e.clientY-canvasy);
 	pos = getMousePos(e);
 	
-	//alert('x: ' + pos.x + ' y: ' + pos.y);
-	last_mousex = pos.x
-	last_mousey = pos.y
+	if(record_box) {
+		mouse_start_x = pos.x;
+		mouse_start_y = pos.y;
+			
+		if(mouse_in_box) {
+			//if inside existing box
+			//console.log('moving box');
+			create_box = false;
+			update_box = false;
+			move_box = true;
+			
+		} else if(12 == 3) {
+			//console.log('updating box');
+			//If on a line (not sure how todo)
+			create_box = false;
+			update_box = true;
+			move_box = false;
+			
+			//need to identify what line or what... perhaps the ending x,y?
+		} else {
+			//console.log('in create box with x: ' + JSON.stringify(box_dim));
+			//Draw new box
+			create_box = true;
+			update_box = false;
+			move_box = false;
+			
+			box_dim = {x1: mouse_start_x, y1: mouse_start_y, x2: 0, y2: 0}
+		}
+	}
+	
     mousedown = true;
 });
 
@@ -169,34 +245,64 @@ $(canvas).on('mousedown', function(e) {
 $(canvas).on('mouseup', function(e) {
 	if(mousedown == false) return;
 	
-	box_w = mousex-last_mousex;
-    box_h = mousey-last_mousey;
+	mousedown = false;
+	
+	if(false == record_box) return;
+	
+	box_w = box_dim.x2 - box_dim.x1 ;
+    box_h = box_dim.y2 - box_dim.y1 ;
     
-    box_x = Math.round((box_w / 2) + last_mousex);
-    box_y = Math.round((box_h / 2) + last_mousey);
-    
-    
-    mousedown = false;
-    
-    drawImageBox(box_x,box_y,1,1, 'red', 2);
+    box_mid_x = Math.round((box_w / 2) + box_dim.x1);
+    box_mid_y = Math.round((box_h / 2) + box_dim.y1);
+      
+	drawImageBox(box_mid_x, box_mid_y, 1, 1, 'red', 2);
+	
+	create_image = false;
+	update_image = false;
+	move_image = false;		
 });
 
 //Mousemove
 $(canvas).on('mousemove', function(e) {
 	pos = getMousePos(e);
-    mousex = pos.x;
-	mousey = pos.y;
-    //mousex = parseInt(e.clientX-canvasx);
-	//mousey = parseInt(e.clientY-canvasy);
-    if(mousedown) {
-        ctx.clearRect(0,0,canvas.width,canvas.height); //clear canvas
-        ctx.drawImage(img, 0, 0);
-        
-        var width = mousex-last_mousex;
-        var height = mousey-last_mousey;
-        
-        drawImageBox(last_mousex,last_mousey,width,height, 'red', 1);
-    }
+    var curx = pos.x;
+	var cury = pos.y;
+	
+    if(false == mousedown) {
+		//is mouse in box?
+		in_box = mouseInBox(curx, cury);
+		
+		return;
+	}
+	
+	if(create_box) {
+          box_dim.x2 = curx;
+          box_dim.y2 = cury;
+    } else if(update_box) {
+		//not sure yet
+	} else if(move_box) {
+		
+		var x_moved = mouse_start_x - curx;
+		var y_moved = mouse_start_y - cury;
+		
+		//console.log('moving x: ' + x_moved + ' y: ' + y_moved + ' box: ' + JSON.stringify(box_dim));
+		
+		box_dim.x1 = box_dim.x1 - x_moved;
+		box_dim.x2 = box_dim.x2 - x_moved;
+		box_dim.y1 = box_dim.y1 - y_moved;
+		box_dim.y2 = box_dim.y2 - y_moved;
+		
+		mouse_start_x = curx;
+		mouse_start_y = cury;
+	}
+    
+    ctx.clearRect(0,0,canvas.width,canvas.height); //clear canvas
+	ctx.drawImage(img, 0, 0);
+	
+	var width = box_dim.x2 - box_dim.x1;
+	var height = box_dim.y2 - box_dim.y1;
+	
+	drawImageBox(box_dim.x1,box_dim.y1, width, height, 'red', 1);
     //Output debug
     //$('#output').html('current: '+mousex+', '+mousey+'<br/>last: '+last_mousex+', '+last_mousey+'<br/>mousedown: '+mousedown);
 });
@@ -227,13 +333,14 @@ function init_new_box()
 		return;
 	}
 	
-	box_x = 0;
-	box_y = 0;
+	box_mid_x = 0;
+	box_mid_y = 0;
 	box_h = 0;
 	box_w = 0;
 	
 	record_box = true;
 	//ctx.clearRect(0,0,canvas.width,canvas.height); //clear canvas
+	$('canvas').css('cursor','crosshair');
 	
 	var canvasx = $(canvas).offset().left;
 	var canvasy = $(canvas).offset().top;
@@ -248,16 +355,46 @@ function add_box()
 	//data = 
 	//alert('x: ' + box_x + ' y: ' + box_y + ' w: ' + box_w + ' h: ' + box_h);
 	
-	record_box = false;
-	
 	cat_value = $('#category').find(':selected').val();
 	cat_text = $('#category').find(':selected').text();
 	
-	var item = {id: 0, category: cat_value, cat_text: cat_text, height: box_h, width: box_w, x: box_x, y: box_y}
+	var clipped = $('#clipped').is(':checked');
+	var difficult = $('#difficult').is(':checked');
+	
+	if(0 == cat_value) {
+		alert('you must select a class/category');
+		return;
+	}
+	
+	record_box = false;	
+	$('canvas').css('cursor','default');
+	
+	if(0 > box_h) {
+		box_h = box_h * -1;
+	}
+	
+	if(0 > box_w) {
+		box_w = box_w * -1;
+	}
+	
+	var item = {
+		id: 0,
+		category: cat_value,
+		cat_text: cat_text,
+		height: box_h,
+		width: box_w,
+		x: box_mid_x,
+		y: box_mid_y,
+		clipped: clipped,
+		difficult: difficult
+	}
 	
 	boxes.push(item);
 	
 	drawBoxesList();
+	
+	$('#clipped').prop('checked', false);
+	$('#difficult').prop('checked', false);
 	
 }
 
@@ -290,7 +427,8 @@ function drawBoxesList()
 		}
 		category = $('<div class="ib_class">' + boxes[i].cat_text + '</div>');
 		
-		data_value = 'x: ' + boxes[i].x + ' y: ' + boxes[i].y + ' w: ' + boxes[i].width + ' h: ' + boxes[i].height;
+		data_value = 'x: ' + boxes[i].x + ' y: ' + boxes[i].y + ' w: ' + boxes[i].width + ' h: ' + boxes[i].height
+			+ ' c: ' + boxes[i].clipped + ' d: ' + boxes[i].difficult;
 		data = $('<div class="ib_class">' + data_value + '</div>');
 		
 		action = $('<div class="ib_ctrl"><button onclick="loadImageBox(' + i + ')">View</button><button onclick="delete_box(' + i + ');">Delete</button></div>');
@@ -385,6 +523,14 @@ function saveImageData()
 		alert('No image exists');
 		return;
 	}
+	
+	if(record_box) {
+		if(confirm("Do you want to store the image data without saving the current box data")) {
+		} else {
+			return;
+		}
+	}
+	
 	var project = $('#project').val();
 	cur_image.boxes = boxes;
 	
